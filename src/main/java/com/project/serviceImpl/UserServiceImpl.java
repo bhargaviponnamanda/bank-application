@@ -6,18 +6,20 @@ import java.math.BigInteger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.project.dto.AccountInfo;
 import com.project.dto.BankResponse;
 import com.project.dto.CreditDebitRequest;
 import com.project.dto.EmailDetails;
 import com.project.dto.EnquiryRequest;
+import com.project.dto.TransactionDto;
 import com.project.dto.TransferRequest;
 import com.project.dto.UserRequest;
 import com.project.entity.User;
 import com.project.repository.UsersRepository;
 import com.project.service.EmailService;
+import com.project.service.TransactionService;
 import com.project.service.UserService;
 import com.project.utils.AccountUtils;
-import com.project.dto.AccountInfo;
 
 @Service
 public class UserServiceImpl implements UserService {
@@ -27,6 +29,9 @@ public class UserServiceImpl implements UserService {
 	
 	@Autowired
 	EmailService emailService;
+	
+	@Autowired
+	TransactionService transactionService;
 
 	@Override
 	public BankResponse createAccount(UserRequest userRequest) {
@@ -139,6 +144,15 @@ public class UserServiceImpl implements UserService {
 		userToCredit.setAccountBalance(userToCredit.getAccountBalance().add(request.getAmount()));
 		usersRepository.save(userToCredit);
 		
+		// Save Transaction
+		TransactionDto dto = TransactionDto.builder()
+				                  .accountNumber(userToCredit.getAccountNumber())
+				                  .transactionType("CREDIT")
+				                  .amount(request.getAmount())
+				                  .build();
+		
+		transactionService.saveTransaction(dto);
+		
 		return BankResponse.builder()
 		           .responseCode(AccountUtils.ACCOUNT_CREDITED_SUCCESS)
 		           .responseMessage(AccountUtils.ACCOUNT_CREDITED_SUCCESS_MESSAGE)
@@ -180,6 +194,15 @@ public class UserServiceImpl implements UserService {
 				} else {
 					userToDebit.setAccountBalance(userToDebit.getAccountBalance().subtract(request.getAmount()));
 					usersRepository.save(userToDebit);
+					
+					// Save Transaction
+					TransactionDto dto = TransactionDto.builder()
+			                  .accountNumber(userToDebit.getAccountNumber())
+			                  .transactionType("DEBIT")
+			                  .amount(request.getAmount())
+			                  .build();
+
+		               transactionService.saveTransaction(dto);
 					
 					return BankResponse.builder()
 					           .responseCode(AccountUtils.ACCOUNT_DEBITED_SUCCESS)
@@ -251,6 +274,15 @@ public class UserServiceImpl implements UserService {
                  + sourceUsername + " Your current balance is " + sourceAccountUser.getAccountBalance()).build();
         
            emailService.sendEmailAlert(creditAlert);
+           
+        // Save Transaction
+         TransactionDto dto = TransactionDto.builder()
+        	                  .accountNumber(destinationAccountUser.getAccountNumber())
+        	                  .transactionType("DEBIT")
+        	                  .amount(request.getAmount())
+        	                  .build();
+
+         transactionService.saveTransaction(dto);
            
            return BankResponse.builder()
            .responseCode(AccountUtils.TRANSFER_SUCCESS_CODE)
